@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>AEGIS ORACLE</title>
+<style>:root{color-scheme:dark}*{box-sizing:border-box}body{margin:auto;max-width:1100px;background:#070b12;color:#e8f1ff;font:16px system-ui;padding:24px 18px calc(24px + env(safe-area-inset-bottom))}h1{color:#00d5ff;letter-spacing:.12em}section{background:#101b2b;border:1px solid #29415e;border-radius:16px;padding:20px;margin:18px 0}textarea,input,select,button{font:inherit;padding:12px;border-radius:8px;border:1px solid #45617d;background:#0b1220;color:inherit}textarea{width:100%}button{cursor:pointer;background:#1266ac;margin:6px}button:disabled{opacity:.5}pre{white-space:pre-wrap;overflow-wrap:anywhere}small{color:#a8b8ca}.controls{display:flex;gap:8px;flex-wrap:wrap}article{border-top:1px solid #29415e;margin-top:18px;padding-top:12px}</style>
+<h1>AEGIS ORACLE</h1><p>ADVANCED OPEN-SOURCE INTELLIGENCE</p><small>Initial DNS research slice. Other modules are not yet delivered. Live responses have not been deployment-tested.</small>
+<section><h2>Bulk DNS research</h2><label for="inputs">Domains, one per line (up to 100)</label><textarea id="inputs" rows="7" placeholder="example.com"></textarea><div class="controls"><label>Record type <select id="type"><option>A</option><option>AAAA</option><option>MX</option><option>NS</option><option>TXT</option><option>CNAME</option><option>SOA</option></select></label><button id="run">Research</button><button id="stop" disabled>Stop</button></div><p id="status" role="status">Ready</p></section>
+<section><h2>Export collected results</h2><label>Text style <select id="style"><option value="box">ASCII box</option><option value="minimal">Minimal</option><option value="signal">Network signal</option></select></label><button id="txt">Download TXT</button><button id="json">Download JSON</button><small>Exports preserve provider responses, retrieval times, DNS status, and failures. Local downloads only; no server-side case storage.</small></section><section><h2>Findings</h2><div id="results"></div></section>
+<script type="module">
+const el=id=>document.getElementById(id);let records=[],controller;
+el('run').onclick=async()=>{
+ const names=[...new Set(el('inputs').value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean))];
+ if(!names.length||names.length>100){el('status').textContent='Enter 1 to 100 domains.';return;}
+ records=[];el('results').replaceChildren();controller=new AbortController();el('run').disabled=true;el('stop').disabled=false;const type=el('type').value;
+ try{for(const name of names){if(controller.signal.aborted)break;let record;
+ try{const response=await fetch('/api/dns?'+new URLSearchParams({name,type}),{signal:controller.signal});const data=await response.json();record=response.ok?data:{input:name,error:data.error};}
+ catch(error){if(controller.signal.aborted)break;record={input:name,error:'Network request failed'};}
+ records.push(record);const article=document.createElement('article');const heading=document.createElement('h3');heading.textContent=name;const pre=document.createElement('pre');pre.textContent=JSON.stringify(record,null,2);article.append(heading,pre);el('results').append(article);el('status').textContent=records.length+' / '+names.length+' processed';
+ }}finally{el('status').textContent+=(controller.signal.aborted?' - stopped':' - finished');el('run').disabled=false;el('stop').disabled=true;}
+};
+el('stop').onclick=()=>controller?.abort();
+function download(extension,content,mime){const url=URL.createObjectURL(new Blob([content],{type:mime}));const a=document.createElement('a');a.href=url;a.download='AEGIS_ORACLE_'+new Date().toISOString().replace(/[:.]/g,'-')+'.'+extension;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
+function archive(){return {schemaVersion:1,generatedAt:new Date().toISOString(),notice:'DNS observations are not proof of ownership. Empty answers do not prove absence. Errors are retained.',records};}
+el('json').onclick=()=>download('json',JSON.stringify(archive(),null,2),'application/json');
+el('txt').onclick=()=>{const style=el('style').value;const banner=style==='box'?'+--------------------------------------+\n|             AEGIS ORACLE             |\n+--------------------------------------+':style==='signal'?'[+]---- AEGIS ORACLE ----[+]':'AEGIS ORACLE';const data=archive();download('txt',banner+'\nGenerated: '+data.generatedAt+'\n'+data.notice+'\n\n'+records.map(r=>JSON.stringify(r,null,2)).join('\n\n----------------------------------------\n\n'),'text/plain;charset=utf-8');};
+</script></html>
